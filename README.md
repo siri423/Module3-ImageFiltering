@@ -1,90 +1,84 @@
-# CSc 8830 Computer Vision — Module 3
-## Image Blurring by Filtering: Spatial Domain vs. Fourier Domain
+# CSc 8830 Computer Vision, Module 3
+## Image blurring by filtering: spatial domain vs Fourier domain
 
-A web application that blurs an image using a **filtering approach** (convolution
-with a blur kernel, implemented from scratch) and then demonstrates the
-**Convolution Theorem**: convolving in the spatial domain produces the *same*
-result as multiplying the Fourier transforms in the frequency domain.
+A small web app that blurs an image using a filtering approach (convolution with
+a blur kernel, written by hand) and then shows the Convolution Theorem in action:
+blurring in the spatial domain gives the same result as multiplying the Fourier
+transforms in the frequency domain.
 
-**Author:** Siri Bikkasani · Georgia State University
+Author: Siri Bikkasani, Georgia State University
 
----
+## Where each assignment requirement is covered
 
-## What each assignment requirement maps to
-
-| Requirement | Where it lives |
+| Requirement | Where |
 |---|---|
-| Implement image blurring (filtering approach) | `src/spatial.py` + web-app tab **“1. Blur an image”** |
-| Show spatial filtering == Fourier-domain equivalent | `src/frequency.py`, `src/compare.py` + tab **“2. Spatial = Frequency”** |
-| Show convolution in space == multiplication in frequency | tab **“2. Spatial = Frequency”** + tab **“3. Theory”** |
-| Theory / derivation (typed) | `Module3_Report.pdf` (Sections 3–4) + tab **“3. Theory”** |
-| Working demo as a **web application** | `app.py` (Streamlit) |
+| Blur an image (filtering approach) | `src/spatial.py` and the web app tab "1. Blur an image" |
+| Spatial filtering equals the Fourier equivalent | `src/frequency.py`, `src/compare.py` and tab "2. Spatial = Frequency" |
+| Convolution in space equals multiplication in frequency | tab "2. Spatial = Frequency" and tab "3. Theory" |
+| Theory and derivation | `Module3_Report.pdf` (Sections 3 and 4) and tab "3. Theory" |
+| Working demo as a web application | `app.py` (Streamlit) |
 
----
-
-## Folder structure
+## Folder layout
 ```
 Module3_ImageFiltering/
-├── app.py               # Streamlit web app — every part is accessible here
-├── requirements.txt
-├── README.md
-├── Module3_Report.pdf   # typed report: theory, worked example, evidence
-├── src/
-│   ├── kernels.py       # build box & Gaussian blur kernels
-│   ├── spatial.py       # 2-D convolution from scratch (the blur)
-│   ├── frequency.py     # FFT-based filtering (multiply in frequency)
-│   ├── compare.py       # spatial-vs-frequency experiment + figure generation
-│   └── utils.py         # image load/save helpers
-├── data/
-│   └── sample.jpg       # built-in test image (upload your own in the app too)
-└── outputs/             # result figures used by the report
+  app.py               the Streamlit web app, everything is reachable here
+  requirements.txt
+  README.md
+  Module3_Report.pdf   the report: theory, worked example, and the results
+  Module3_Report.tex   LaTeX source for the report
+  src/
+    kernels.py         builds the box and Gaussian kernels
+    spatial.py         the hand written 2D convolution (the blur)
+    frequency.py       the FFT based version (multiply in frequency)
+    compare.py         runs the spatial vs frequency experiment and makes figures
+    utils.py           load and save images
+  data/
+    sample.jpg         the built in test image (you can also upload your own)
+  outputs/             the result figures used in the report
 ```
 
 ## Setup
-```bash
+```
 pip install -r requirements.txt
 ```
 
-## Run the web application (this is what you screen-record)
-```bash
+## Run the web app (this is what the screen recording shows)
+```
 streamlit run app.py
 ```
-Then open the URL it prints (usually http://localhost:8501) and walk through the
-tabs left to right:
+Then open the address it prints (usually http://localhost:8501) and go through
+the tabs:
 
-1. **Overview** — what the app does + the GitHub link.
-2. **1. Blur an image** — upload an image (or use the built-in sample), pick a
-   kernel (box or Gaussian) and size, and see it blurred. This is the filtering
-   implementation.
-3. **2. Spatial = Frequency (proof)** — the same image is blurred both ways and
-   the app reports the `max |difference|` (about `1e-15`, i.e. identical) plus a
-   side-by-side view and the frequency-domain spectra.
-4. **3. Theory** — the Convolution Theorem written out.
+1. Overview: what the app does and the link to the GitHub repo.
+2. Blur an image: upload a picture or use the built in sample, pick a kernel
+   (box or Gaussian) and a size, and see it blurred. There is a checkbox to
+   process in color if you want.
+3. Spatial = Frequency: the same image is blurred both ways and the app reports
+   the biggest difference (around 1e-15, so they are the same), with a side by
+   side view and the frequency spectra.
+4. Theory: the Convolution Theorem written out.
 
-## Run from the command line (optional — reproduces the report figures)
-```bash
-# Gaussian 15x15 blur, prints error metrics, writes figures to outputs/
+## Run from the command line (optional, reproduces the figures)
+```
 python -m src.compare --kind gaussian --size 15
-
-# Box 9x9 blur
 python -m src.compare --kind box --size 9
 ```
 Example output:
 ```
-max |diff|      : 2.665e-15      <- spatial and frequency results are identical
-MSE             : 2.226e-31
-PSNR (dB)       : 306.5
+max abs diff   : 2.665e-15      spatial and frequency results are the same
+MSE            : 2.226e-31
+PSNR (dB)      : 306.5
 ```
 
-## How it works, in one paragraph
+## How it works in short
 A blur kernel (box or Gaussian, built in `kernels.py`) is a small grid of weights
-that sum to 1. Blurring convolves the image with that kernel. `spatial.py` does
-this directly with a from-scratch, vectorised “shift-and-add” convolution (no
-`cv2.GaussianBlur`). `frequency.py` does the same job in the Fourier domain: it
-takes the FFT of the image and of the kernel, multiplies them element-wise, and
-inverse-transforms — because convolution in space equals multiplication in
-frequency. `compare.py` runs both on the same input and measures the difference,
-which is on the order of machine precision (`~1e-15`), confirming the theorem.
+that add up to 1. Blurring convolves the image with that kernel. `spatial.py` does
+this directly with a convolution I wrote by hand, no library blur function.
+`frequency.py` does the same job in the Fourier domain: it takes the FFT of the
+image and the kernel, multiplies them, and transforms back, because convolution in
+space is the same as multiplication in frequency. `compare.py` runs both on the
+same input and measures the gap, which sits around 1e-15, so the theorem holds.
 
-## Dependencies
-Python 3.9+, `streamlit`, `numpy`, `pillow`, `matplotlib` (see `requirements.txt`).
+## Requirements
+Python 3.9 or newer, plus streamlit, numpy, pillow and matplotlib (see
+`requirements.txt`).

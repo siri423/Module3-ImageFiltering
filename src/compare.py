@@ -1,20 +1,13 @@
 """
 compare.py
-----------
-Runs the actual EXPERIMENT that validates the Convolution Theorem:
+This is the experiment that checks the Convolution Theorem.
 
-    blur the SAME image with the SAME kernel using
-        (a) from-scratch spatial convolution   (spatial.py)
-        (b) Fourier-domain multiplication       (frequency.py)
-    then measure how close the two results are.
-
-If the theorem holds, the two images should be identical up to tiny
-floating-point rounding error (max difference ~1e-15). This module reports
-that difference and can also be run from the command line to generate all the
+It blurs the same image with the same kernel two ways, the hand written spatial
+convolution (spatial.py) and the Fourier method (frequency.py), and then measures
+how far apart the two results are. If the theorem holds they should be identical
+apart from tiny floating point rounding (the biggest difference comes out around
+1e-15). You can also run this file from the command line to regenerate all the
 figures used in the report.
-
-Author: Siri Bikkasani
-Course:  CSc 8830 Computer Vision - Module 3
 """
 
 from __future__ import annotations
@@ -27,15 +20,15 @@ from .frequency import blur_frequency
 from .utils import apply_per_channel
 
 
-def error_metrics(a: np.ndarray, b: np.ndarray) -> dict:
+def error_metrics(a, b):
     """
-    Compare two images and return numbers describing how different they are.
+    Compare two images and return a few numbers describing the gap between them.
 
-    max_abs_diff : the single largest pixel difference (the strongest evidence;
-                   a value near machine epsilon means "the same image").
-    mse          : mean squared error, averaged over all pixels.
-    psnr_db      : peak signal-to-noise ratio in decibels. Infinite (or very
-                   large) when the images are effectively identical.
+    max_abs_diff  the single biggest difference at any pixel. This is the main
+                  one to look at. If it is near 1e-15 the two images are the same.
+    mse           the average squared difference over all pixels.
+    psnr_db       peak signal to noise ratio in decibels. Very large (or infinite)
+                  when the two images are basically identical.
     """
     a = np.asarray(a, dtype=np.float64)
     b = np.asarray(b, dtype=np.float64)
@@ -45,22 +38,14 @@ def error_metrics(a: np.ndarray, b: np.ndarray) -> dict:
     if mse == 0:
         psnr = float("inf")
     else:
-        psnr = float(10.0 * np.log10(1.0 / mse))   # peak = 1.0 for [0,1] images
+        psnr = float(10.0 * np.log10(1.0 / mse))
     return {"max_abs_diff": max_abs, "mse": mse, "psnr_db": psnr}
 
 
-def compare_methods(image: np.ndarray,
-                    kind: str = "gaussian",
-                    size: int = 15,
-                    sigma: float | None = None) -> dict:
+def compare_methods(image, kind="gaussian", size=15, sigma=None):
     """
-    Blur `image` both ways and bundle up everything the app/report needs.
-
-    Works for grayscale (H, W) and color (H, W, 3) images.
-
-    Returns a dict with:
-        kernel, spatial, frequency, diff (absolute), metrics,
-        time_spatial, time_frequency
+    Blur the image both ways and bundle up everything the app and report need.
+    Works for a gray image (H, W) or a color image (H, W, 3).
     """
     kernel = make_kernel(kind, size, sigma)
 
@@ -83,19 +68,20 @@ def compare_methods(image: np.ndarray,
 
 
 # --------------------------------------------------------------------------
-# Command-line entry point: generates all report figures into ../outputs/
+# Command line entry point. Regenerates the figures into ../outputs/.
+# Run it as:  python -m src.compare --kind gaussian --size 15
 # --------------------------------------------------------------------------
-def _main() -> None:
+def _main():
     import argparse
     import os
     import matplotlib
-    matplotlib.use("Agg")                          # no display needed
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from .utils import load_image, save_image, to_uint8
+    from .utils import load_image, save_image
     from .frequency import magnitude_spectrum
 
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ap = argparse.ArgumentParser(description="Spatial vs Frequency blur experiment")
+    ap = argparse.ArgumentParser(description="Spatial vs frequency blur experiment")
     ap.add_argument("--image", default=os.path.join(here, "data", "sample.jpg"))
     ap.add_argument("--kind", default="gaussian", choices=["gaussian", "box"])
     ap.add_argument("--size", type=int, default=15)
@@ -108,55 +94,53 @@ def _main() -> None:
     res = compare_methods(img, args.kind, args.size, args.sigma)
     m = res["metrics"]
 
-    print(f"Image           : {args.image}  {img.shape}")
-    print(f"Kernel          : {args.kind} {args.size}x{args.size}")
-    print(f"max |diff|      : {m['max_abs_diff']:.3e}")
-    print(f"MSE             : {m['mse']:.3e}")
-    print(f"PSNR (dB)       : {m['psnr_db']}")
-    print(f"time spatial    : {res['time_spatial']*1000:.1f} ms")
-    print(f"time frequency  : {res['time_frequency']*1000:.1f} ms")
+    print("Image          :", args.image, img.shape)
+    print("Kernel         :", args.kind, str(args.size) + "x" + str(args.size))
+    print("max abs diff   : {:.3e}".format(m["max_abs_diff"]))
+    print("MSE            : {:.3e}".format(m["mse"]))
+    print("PSNR (dB)      :", m["psnr_db"])
+    print("time spatial   : {:.1f} ms".format(res["time_spatial"] * 1000))
+    print("time frequency : {:.1f} ms".format(res["time_frequency"] * 1000))
 
-    # Save the plain result images
+    # plain result images
     save_image(img, os.path.join(args.out, "01_original.png"))
     save_image(res["spatial"], os.path.join(args.out, "02_blur_spatial.png"))
     save_image(res["frequency"], os.path.join(args.out, "03_blur_frequency.png"))
 
-    # Figure A: side-by-side proof (original, spatial, frequency, diff)
+    # side by side figure: original, both methods, and the difference
     fig, ax = plt.subplots(1, 4, figsize=(16, 4.2))
     ax[0].imshow(img, cmap="gray"); ax[0].set_title("Original")
     ax[1].imshow(res["spatial"], cmap="gray"); ax[1].set_title("Spatial convolution")
     ax[2].imshow(res["frequency"], cmap="gray"); ax[2].set_title("Frequency multiplication")
     d = ax[3].imshow(res["diff"], cmap="magma")
-    ax[3].set_title(f"|difference|  (max={m['max_abs_diff']:.1e})")
+    ax[3].set_title("abs difference  (max={:.1e})".format(m["max_abs_diff"]))
     fig.colorbar(d, ax=ax[3], fraction=0.046)
     for a in ax:
         a.axis("off")
-    fig.suptitle(f"Spatial vs Frequency blur  -  {args.kind} {args.size}x{args.size}",
-                 fontsize=13)
+    fig.suptitle("Spatial vs frequency blur, " + args.kind + " "
+                 + str(args.size) + "x" + str(args.size), fontsize=13)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out, "fig_comparison.png"), dpi=130,
-                bbox_inches="tight")
+    fig.savefig(os.path.join(args.out, "fig_comparison.png"), dpi=130, bbox_inches="tight")
     plt.close(fig)
 
-    # Figure B: the frequency picture (image spectrum, kernel response, result)
+    # frequency picture: image spectrum, kernel response, blurred spectrum
     fig, ax = plt.subplots(1, 3, figsize=(13, 4.3))
     ax[0].imshow(magnitude_spectrum(img), cmap="gray")
-    ax[0].set_title("Image spectrum |F(u,v)|  (log)")
+    ax[0].set_title("Image spectrum |F(u,v)| (log)")
     kresp = np.fft.fftshift(np.abs(np.fft.fft2(res["kernel"], s=img.shape)))
     kresp = kresp / kresp.max()
-    ax[1].imshow(kresp, cmap="gray"); ax[1].set_title("Kernel response |G(u,v)|  (low-pass)")
+    ax[1].imshow(kresp, cmap="gray"); ax[1].set_title("Kernel response |G(u,v)| (low pass)")
     ax[2].imshow(magnitude_spectrum(res["frequency"]), cmap="gray")
-    ax[2].set_title("Blurred spectrum |F.G|  (log)")
+    ax[2].set_title("Blurred spectrum |F.G| (log)")
     for a in ax:
         a.axis("off")
-    fig.suptitle("Why blurring is low-pass filtering: high frequencies are removed",
+    fig.suptitle("Why blurring is low pass filtering: high frequencies are removed",
                  fontsize=13)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out, "fig_spectra.png"), dpi=130,
-                bbox_inches="tight")
+    fig.savefig(os.path.join(args.out, "fig_spectra.png"), dpi=130, bbox_inches="tight")
     plt.close(fig)
 
-    print(f"\nFigures written to: {args.out}")
+    print("\nFigures written to:", args.out)
 
 
 if __name__ == "__main__":

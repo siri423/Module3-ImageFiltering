@@ -1,92 +1,87 @@
 """
 spatial.py
-----------
-Image blurring in the SPATIAL domain, implemented from scratch (i.e. we do NOT
-call cv2.filter2D / cv2.GaussianBlur). This is the "filtering approach" the
-assignment asks us to implement.
+Blurring in the spatial domain, written out by hand. I am not calling any
+ready made blur function here (no cv2.GaussianBlur and no scipy). This is the
+"filtering approach" the assignment asks for.
 
-Blurring = 2-D convolution of the image with a small blur kernel.
-For each output pixel we slide the (flipped) kernel over the image, multiply
-overlapping values, and sum them up.
+Blurring is a 2D convolution of the image with a blur kernel. For each output
+pixel you line the kernel up on the image, multiply the overlapping values, and
+add them up.
 
-Two implementations are provided:
-  1. convolve2d_naive  - the plain textbook nested-loop version. Easy to read,
-                         but slow. Good for understanding + small examples.
-  2. convolve2d        - a fast, vectorised "shift-and-add" version that gives
-                         the exact same result. Used by the app on real images.
+There are two versions below:
 
-Boundary handling ("padding"):
-  * "zero"    : treat pixels outside the image as 0. This makes the operation
-                a true LINEAR convolution, which is exactly what the FFT method
-                computes -- so we use "zero" when proving the two methods match.
-  * "reflect" : mirror the edge pixels. Looks nicer (no dark border) for a
-                pure visual blur.
+  convolve2d_naive  the plain version with nested loops. It is slow but it makes
+                    the definition obvious, which is nice for a small example.
+  convolve2d        a faster version that gives the exact same answer. Instead of
+                    looping over every pixel it loops over the handful of kernel
+                    positions, which is much quicker on a real photo.
 
-Author: Siri Bikkasani
-Course:  CSc 8830 Computer Vision - Module 3
+About the edges. When the kernel hangs off the side of the image we have to
+decide what the missing pixels are:
+  "zero"     treat anything outside as 0. This gives an ordinary linear
+             convolution, which is exactly what the FFT method computes, so I use
+             this when I want the two methods to match.
+  "reflect"  mirror the edge pixels. This looks nicer for a plain visual blur
+             because it does not darken the border.
 """
 
 from __future__ import annotations
 import numpy as np
 
 
-def pad_image(image: np.ndarray, pad_h: int, pad_w: int, mode: str = "zero") -> np.ndarray:
+def pad_image(image, pad_h, pad_w, mode="zero"):
     """Add a border of width (pad_h, pad_w) around the image."""
     if mode == "zero":
         return np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="constant")
     if mode == "reflect":
         return np.pad(image, ((pad_h, pad_h), (pad_w, pad_w)), mode="reflect")
-    raise ValueError("mode must be 'zero' or 'reflect'")
+    raise ValueError("mode should be 'zero' or 'reflect'")
 
 
-def convolve2d_naive(image: np.ndarray, kernel: np.ndarray, mode: str = "zero") -> np.ndarray:
+def convolve2d_naive(image, kernel, mode="zero"):
     """
-    The plain, easy-to-follow version of 2-D convolution (nested loops).
-
-    This is O(H * W * k * k) and is slow on big images, but it makes the
-    definition of convolution crystal clear. We flip the kernel so that this
-    is true convolution (not correlation).
+    The straightforward version of 2D convolution with nested loops. It is slow
+    on big images but easy to read. The kernel is flipped first so that this is
+    real convolution and not correlation (for a symmetric blur kernel the two
+    are the same anyway).
     """
     kh, kw = kernel.shape
     ph, pw = kh // 2, kw // 2
-    kflip = kernel[::-1, ::-1]                     # flip kernel -> convolution
+    kflip = kernel[::-1, ::-1]
     padded = pad_image(image, ph, pw, mode)
     H, W = image.shape
     out = np.zeros((H, W), dtype=np.float64)
 
-    for y in range(H):                            # for every output row
-        for x in range(W):                        # for every output column
-            region = padded[y:y + kh, x:x + kw]   # kh x kw neighbourhood
-            out[y, x] = np.sum(region * kflip)    # weighted sum
+    for y in range(H):
+        for x in range(W):
+            region = padded[y:y + kh, x:x + kw]
+            out[y, x] = np.sum(region * kflip)
     return out
 
 
-def convolve2d(image: np.ndarray, kernel: np.ndarray, mode: str = "zero") -> np.ndarray:
+def convolve2d(image, kernel, mode="zero"):
     """
-    Fast, vectorised 2-D convolution -- identical result to convolve2d_naive.
+    The fast version. It gives the same result as convolve2d_naive.
 
-    Idea ("shift and add"): instead of looping over every pixel, we loop over
-    the (few) kernel positions. For each kernel weight we take the whole padded
-    image, shift it, multiply by that single weight, and accumulate. A kxk
-    kernel therefore needs only k*k array operations regardless of image size.
+    The trick: rather than looping over every pixel, loop over the kernel
+    positions. For each weight in the kernel, take the whole padded image,
+    shift it, multiply by that one weight, and add it on. A k by k kernel then
+    only needs k*k array operations no matter how large the image is.
     """
     kh, kw = kernel.shape
     ph, pw = kh // 2, kw // 2
-    kflip = kernel[::-1, ::-1]                     # flip -> true convolution
+    kflip = kernel[::-1, ::-1]
     padded = pad_image(image, ph, pw, mode)
     H, W = image.shape
     out = np.zeros((H, W), dtype=np.float64)
 
     for i in range(kh):
         for j in range(kw):
-            # padded[i:i+H, j:j+W] is the image shifted by (i, j).
+            # padded[i:i+H, j:j+W] is the image shifted by (i, j)
             out += kflip[i, j] * padded[i:i + H, j:j + W]
     return out
 
 
-def blur_spatial(image: np.ndarray, kernel: np.ndarray, mode: str = "zero") -> np.ndarray:
-    """
-    Public entry point: blur a (grayscale) image by convolving it with the
-    given blur kernel in the spatial domain.
-    """
+def blur_spatial(image, kernel, mode="zero"):
+    """Blur a grayscale image by convolving it with the kernel in the spatial domain."""
     return convolve2d(image, kernel, mode=mode)

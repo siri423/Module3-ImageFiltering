@@ -1,88 +1,80 @@
 """
 frequency.py
-------------
-Image blurring in the FREQUENCY (Fourier) domain.
+Blurring in the frequency (Fourier) domain.
 
-The Convolution Theorem says:
+The Convolution Theorem says that convolving in space is the same as multiplying
+in frequency:
 
-        convolution in space  <===>  multiplication in frequency
-        f * g                 <===>  F . G          (element-wise product)
+    f * g  in space   <=>   F . G  in frequency   (a plain element-wise product)
 
-So instead of sliding a kernel over the image (spatial.py), we can:
-    1. take the Fourier transform of the image      -> F
-    2. take the Fourier transform of the kernel      -> G
-    3. multiply them element-wise                    -> F . G
-    4. take the inverse Fourier transform            -> the blurred image
+So instead of sliding a kernel over the image, we can:
+  1. take the Fourier transform of the image   -> F
+  2. take the Fourier transform of the kernel   -> G
+  3. multiply them together                      -> F . G
+  4. take the inverse Fourier transform          -> the blurred image
 
-This module implements exactly that, and is written so its result matches
-the from-scratch spatial convolution (spatial.blur_spatial with mode="zero")
-to within tiny floating-point rounding error. That match is our experimental
-proof of the theorem.
+I wrote this so its result lines up with the hand written spatial convolution in
+spatial.py (with zero padding) down to tiny rounding error. That match is what
+proves the theorem in the app.
 
-Important detail -- LINEAR vs CIRCULAR convolution:
-The plain FFT of two arrays gives *circular* convolution (the kernel wraps
-around the image edges). To reproduce ordinary (linear) zero-padded
-convolution we must first zero-pad BOTH arrays to size (H+kh-1, W+kw-1).
-Then the circular convolution equals the linear one, and we crop the centre.
-
-Author: Siri Bikkasani
-Course:  CSc 8830 Computer Vision - Module 3
+One detail that matters: the plain FFT gives a circular convolution, where the
+kernel wraps around the edges of the image. To get an ordinary linear
+convolution instead, I zero pad both arrays to size (H+kh-1, W+kw-1) before
+transforming, and then crop the middle back out. The FFT itself is the one piece
+I use NumPy for (np.fft); everything around it is done here.
 """
 
 from __future__ import annotations
 import numpy as np
 
 
-def blur_frequency(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+def blur_frequency(image, kernel):
     """
-    Blur a grayscale image by MULTIPLYING in the Fourier domain.
-
-    Returns an (H, W) image that matches the zero-padded spatial convolution
-    of `image` with `kernel`.
+    Blur a grayscale image by multiplying in the Fourier domain. The result is
+    the same (H, W) image you would get from the zero padded spatial convolution.
     """
     H, W = image.shape
     kh, kw = kernel.shape
 
-    # Size needed for LINEAR convolution (avoids wrap-around / circular effects)
+    # size we need for a linear convolution, so the kernel does not wrap around
     full_h, full_w = H + kh - 1, W + kw - 1
 
-    # Step 1 & 2: Fourier transforms, each zero-padded to the full size.
-    F = np.fft.fft2(image, s=(full_h, full_w))     # transform of the image
-    G = np.fft.fft2(kernel, s=(full_h, full_w))    # transform of the kernel
+    # steps 1 and 2: transform the image and the kernel, both padded to full size
+    F = np.fft.fft2(image, s=(full_h, full_w))
+    G = np.fft.fft2(kernel, s=(full_h, full_w))
 
-    # Step 3: multiplication in frequency == convolution in space
+    # step 3: multiply in frequency, which is the same as convolving in space
     product = F * G
 
-    # Step 4: inverse transform, keep the real part (imaginary part is ~0)
+    # step 4: go back to an image and keep the real part (the imaginary part is ~0)
     full = np.real(np.fft.ifft2(product))
 
-    # Crop the centre region so the output is the same (H, W) as the spatial
-    # method. For odd kernels the offset is exactly half the kernel size.
+    # crop the middle so the output is the same size as the spatial version
     ph, pw = kh // 2, kw // 2
     return full[ph:ph + H, pw:pw + W]
 
 
-def magnitude_spectrum(image: np.ndarray) -> np.ndarray:
+def magnitude_spectrum(image):
     """
-    Return a log-magnitude spectrum of an image, shifted so the zero frequency
-    (DC term) is in the centre. Handy for VISUALISING what the transform looks
-    like. Output is scaled to [0, 1] for display.
+    Return a log magnitude spectrum of an image, shifted so the zero frequency
+    sits in the middle. This is only for showing what the transform looks like.
+    The output is scaled to 0..1 so it displays nicely.
     """
     F = np.fft.fft2(image)
-    F_shift = np.fft.fftshift(F)                    # move low freqs to centre
-    mag = np.log1p(np.abs(F_shift))                # log so we can see detail
+    F_shift = np.fft.fftshift(F)
+    mag = np.log1p(np.abs(F_shift))
     mag -= mag.min()
     if mag.max() > 0:
         mag /= mag.max()
     return mag
 
 
-def kernel_frequency_response(kernel: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
+def kernel_frequency_response(kernel, shape):
     """
-    Visualise the kernel's frequency response (its transfer function) at the
-    given image `shape`. A blur kernel acts as a LOW-PASS filter: this image is
-    bright in the centre (low frequencies kept) and dark at the edges (high
-    frequencies, i.e. fine detail, removed). Scaled to [0, 1] for display.
+    Show what the kernel does in frequency (its transfer function) at a given
+    image size. A blur kernel is a low pass filter, so this picture is bright in
+    the middle (low frequencies kept) and dark near the edges (high frequencies,
+    the fine detail, taken away). Scaled to 0..1 for display.
     """
     G = np.fft.fft2(kernel, s=shape)
     G_shift = np.fft.fftshift(G)

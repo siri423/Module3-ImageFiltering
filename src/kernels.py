@@ -1,86 +1,64 @@
 """
 kernels.py
-----------
-Functions that build the small filter "kernels" (also called masks or
-point-spread functions) used to blur an image.
+Builds the small grids of weights (the "kernels") that we use to blur an image.
 
-A blur kernel is just a little grid of weights. To blur a pixel we take a
-weighted average of that pixel and its neighbours. Two classic choices:
+A kernel is just a little square of numbers. To blur a pixel we take a weighted
+average of that pixel and the pixels around it, and the kernel says how much
+weight each neighbour gets. I set up two kinds here:
 
-  * Box (average) kernel : every weight is equal -> plain averaging.
-  * Gaussian kernel      : weights follow a bell curve -> smoother, more
-                           natural looking blur with fewer artifacts.
+  box       every weight is the same, so it is a plain average of the neighbours
+  gaussian  the weights follow a bell curve, so the middle pixel counts most and
+            the effect fades out towards the edges (this looks smoother)
 
-Every kernel we return is NORMALISED (its weights sum to 1.0). That keeps the
-overall brightness of the image unchanged after blurring.
-
-Author: Siri Bikkasani
-Course:  CSc 8830 Computer Vision - Module 3
+Every kernel is normalised, meaning all of its weights add up to 1. That keeps
+the picture at the same overall brightness after blurring.
 """
 
 from __future__ import annotations
 import numpy as np
 
 
-def box_kernel(size: int) -> np.ndarray:
+def box_kernel(size):
     """
-    Build a size x size box (averaging) kernel.
-
-    Example (size=3):
-        1/9 * [[1, 1, 1],
-               [1, 1, 1],
-               [1, 1, 1]]
+    Make a size by size box (averaging) kernel. For size 3 this is a 3x3 grid
+    where every entry is 1/9.
     """
     if size < 1 or size % 2 == 0:
-        raise ValueError("kernel size must be a positive ODD integer (e.g. 3, 5, 7)")
+        raise ValueError("kernel size has to be a positive odd number like 3, 5, 7")
     k = np.ones((size, size), dtype=np.float64)
-    return k / k.sum()          # normalise so weights add up to 1
+    return k / k.sum()
 
 
-def gaussian_kernel(size: int, sigma: float | None = None) -> np.ndarray:
+def gaussian_kernel(size, sigma=None):
     """
-    Build a size x size Gaussian kernel.
+    Make a size by size Gaussian kernel.
 
-    The 2-D Gaussian is:  G(x, y) = exp( -(x^2 + y^2) / (2 * sigma^2) )
-    We evaluate it on a grid centred at (0, 0), then normalise so the
-    weights sum to 1.
+    The 2D Gaussian is exp(-(x^2 + y^2) / (2 * sigma^2)). We work out that value
+    on a small grid centred at (0, 0) and then divide by the total so the weights
+    add up to 1.
 
-    Parameters
-    ----------
-    size : int
-        Odd kernel width/height (e.g. 3, 5, 7, ...). Bigger = more blur.
-    sigma : float or None
-        Standard deviation of the bell curve. If None, a sensible default
-        tied to the kernel size is used (the common rule sigma = size/6,
-        which puts +/-3 sigma at the kernel edges).
-
-    Returns
-    -------
-    np.ndarray
-        A normalised (size x size) Gaussian kernel.
+    sigma controls how wide the bell curve is. If you do not pass one, I use
+    size/6, which is the usual rule of thumb (it puts about 3 sigma at the edge
+    of the kernel).
     """
     if size < 1 or size % 2 == 0:
-        raise ValueError("kernel size must be a positive ODD integer (e.g. 3, 5, 7)")
+        raise ValueError("kernel size has to be a positive odd number like 3, 5, 7")
     if sigma is None or sigma <= 0:
-        sigma = size / 6.0                       # default spread
+        sigma = size / 6.0
 
     half = size // 2
-    # 1-D coordinate axis: e.g. size=5 -> [-2, -1, 0, 1, 2]
+    # coordinate axis, e.g. for size 5 this is [-2, -1, 0, 1, 2]
     ax = np.arange(-half, half + 1, dtype=np.float64)
-    xx, yy = np.meshgrid(ax, ax)                  # 2-D coordinate grids
+    xx, yy = np.meshgrid(ax, ax)
     kernel = np.exp(-(xx**2 + yy**2) / (2.0 * sigma**2))
-    return kernel / kernel.sum()                  # normalise to sum = 1
+    return kernel / kernel.sum()
 
 
-def make_kernel(kind: str, size: int, sigma: float | None = None) -> np.ndarray:
-    """
-    Convenience wrapper used by the rest of the app.
-
-    kind : "box" or "gaussian"
-    """
+def make_kernel(kind, size, sigma=None):
+    """Small helper so the rest of the app can just ask for 'box' or 'gaussian'."""
     kind = kind.lower()
     if kind == "box":
         return box_kernel(size)
     if kind == "gaussian":
         return gaussian_kernel(size, sigma)
-    raise ValueError(f"unknown kernel kind: {kind!r} (use 'box' or 'gaussian')")
+    raise ValueError("kind should be 'box' or 'gaussian', got " + repr(kind))
