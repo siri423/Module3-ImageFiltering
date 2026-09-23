@@ -6,6 +6,8 @@ a blur kernel, written by hand) and then shows the Convolution Theorem in action
 blurring in the spatial domain gives the same result as multiplying the Fourier
 transforms in the frequency domain.
 
+**Live web app:** https://module3-imagefiltering-cirvxeybpqowzzg5bfwfyt.streamlit.app/
+
 Author: Sirichandana Bikkasani, Georgia State University
 
 ## Where each assignment requirement is covered
